@@ -1,0 +1,198 @@
+import React, { useState, useEffect, useLayoutEffect, useRef } from "react";
+import { format, parse } from "date-fns";
+import clsx from "classnames";
+import "./index.css";
+
+const records = [
+  { id: 12, title: "Apples", date: "06/28/2019" },
+  { id: 32, title: "Oranges", date: "12/12/2018" },
+  { id: 67, title: "Pears", date: "06/22/2018" },
+  { id: 89, title: "Grapes", date: "08/01/2019" },
+  { id: 31, title: "Strawberries", date: "02/22/2002" },
+  { id: 10, title: "Bananas", date: "02/21/2019" },
+  { id: 13, title: "Kiwis", date: "02/02/1999" },
+  { id: 13, title: "NullTest01", date: undefined },
+  { id: 13, title: null, date: null },
+  { id: null, title: "NullTest02", date: null },
+];
+
+const SORT_ASCENDING = "asc";
+const SORT_DESCENDING = "desc";
+
+const sort =
+  (order = "asc", field) =>
+  (a, b) => {
+    if (a[field] === b[field]) return 0;
+
+    var typeOfField = typeof a[field];
+
+    const result =
+      typeOfField === "number"
+        ? sortNumber(a, b, field)
+        : typeOfField === "string"
+        ? sortString(a, b, field)
+        : a[field] instanceof Date
+        ? sortDate(a, b, field)
+        : null;
+
+    // console.log(a[field], b[field], result, ~result);
+
+    return order === SORT_ASCENDING ? +result : -result;
+  };
+
+function sortDate(a, b, field) {
+  const l = field ? a[field] : a;
+  const r = field ? b[field] : b;
+
+  if (!l) return 1;
+  else if (!r) return -1;
+
+  const lx = l.getTime();
+  const rx = r.getTime();
+
+  return lx < rx ? -1 : lx > rx ? 1 : 0;
+}
+
+function sortNumber(a, b, field) {
+  const l = field ? a[field] : a;
+  const r = field ? b[field] : b;
+
+  if (!l) return 1;
+  else if (!r) return -1;
+
+  return l - r;
+}
+
+function sortString(a, b, field) {
+  const l = field ? a[field] : a;
+  const r = field ? b[field] : b;
+
+  if (!l) return 1;
+  else if (!r) return -1;
+
+  return l < r ? -1 : l > r ? 1 : 0;
+}
+
+function getNextSortOrder(order) {
+  return order === SORT_ASCENDING ? SORT_DESCENDING : SORT_ASCENDING;
+}
+
+function upperCase(text) {
+  return text[0].toUpperCase() + text.substring(1);
+}
+
+function usePrevious(value) {
+  const ref = useRef();
+  useLayoutEffect(() => {
+    ref.current = value;
+  }, [value]);
+
+  return ref.current;
+}
+
+export default function Sorting() {
+  const [sortedData, setSortedData] = useState([]);
+  const [sortOrder, setSortOrder] = useState(SORT_ASCENDING);
+  const [sortField, setSortField] = useState({
+    curr: "id",
+    prev: "id",
+  });
+
+  const test = usePrevious(sortField);
+  console.log("Previous", test);
+
+  useEffect(() => {
+    const normalized = records
+      .slice()
+      .map((row) => ({
+        ...row,
+        date: row.date
+          ? parse(row.date, "MM/dd/yyyy", new Date("1970-01-01"))
+          : null,
+      }))
+      .sort(sort(SORT_ASCENDING, "id"));
+
+    setSortedData(normalized);
+  }, []);
+
+  const handleSort = (field) => () => {
+    // Reset sort order when to ASC when user switches field
+    const order =
+      field === sortField.curr || sortField.curr === sortField.prev
+        ? getNextSortOrder(sortOrder)
+        : SORT_ASCENDING;
+    const data = sortedData.slice().sort(sort(order, field));
+
+    setSortedData(data);
+    setSortOrder(order);
+    setSortField((state) => ({
+      curr: field,
+      prev: state.curr,
+    }));
+  };
+
+  const Button = ({ name }) => {
+    const nextOrder = getNextSortOrder(sortOrder);
+    const order = sortField.curr === name ? nextOrder : "asc";
+    return (
+      <button
+        data-state={order}
+        className={clsx("btn", {
+          "btn-asc": order === SORT_ASCENDING,
+          "btn-desc": order === SORT_DESCENDING,
+        })}
+        onClick={handleSort(name)}
+      >
+        Sort By <strong>"{name}"</strong> {upperCase(order)}
+      </button>
+    );
+  };
+
+  return (
+    <div className="App">
+      <h1>
+        Count of records: {sortedData.length} <br />{" "}
+        <pre
+          style={{
+            fontSize: ".5em",
+            padding: 8,
+            background: "#eee",
+            color: "#333",
+            fontWeight: 200,
+          }}
+        >
+          Sorted by field <strong>"{sortField.curr}"</strong>, previous field{" "}
+          <strong>"{sortField.prev}"</strong>
+        </pre>
+      </h1>
+      <div style={{ display: "flex", margin: "1em 0" }}>
+        <Button name="id" />
+        <Button name="title" />
+        <Button name="date" />
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Id</th>
+            <th>Title</th>
+            <th>Date</th>
+          </tr>
+        </thead>
+        <tbody>
+          {sortedData.map((row, index) => {
+            return (
+              <tr key={index}>
+                <td>{row.id || "--"}</td>
+                <td>{row.title || "--"}</td>
+                {/* <td>{row.date ? row.date.toString() : '--'}</td> */}
+                <td>
+                  {row.date ? format(new Date(row.date), "yyyy-MM-dd") : "--"}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
